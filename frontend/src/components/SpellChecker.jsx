@@ -6,22 +6,26 @@ import {
   AlertCircle,
   Users,
   GraduationCap,
+  PlusCircle, // Added for the "Add Word" feature
 } from "lucide-react";
 
 const SpellChecker = () => {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState(""); // For "Word Added" success messages
 
   const members = [
+    "Mekonen Gebreslassie",
     "Biruk Amserom",
     "Dejen Mulu",
     "Teamr kahsay",
     "Sara Gedamu",
-    "Mekonen Gebreslassie",
     "Rodas Hagos",
     "Semere Tsegab",
   ];
+
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -29,6 +33,7 @@ const SpellChecker = () => {
         checkSpelling(input.trim());
       } else {
         setStatus(null);
+        setFeedback("");
       }
     }, 400);
 
@@ -38,8 +43,6 @@ const SpellChecker = () => {
   const checkSpelling = async (word) => {
     setLoading(true);
     try {
-      const API_BASE =
-        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
       const { data } = await axios.get(`${API_BASE}/check?word=${word}`);
       setStatus(data);
     } catch (error) {
@@ -48,9 +51,32 @@ const SpellChecker = () => {
     setLoading(false);
   };
 
+  // NEW: Fulfills "Learn from user corrections" requirement
+  const handleSuggestionClick = async (suggestion) => {
+    setInput(suggestion);
+    try {
+      await axios.post(`${API_BASE}/learn`, { word: suggestion });
+      console.log(`Learned frequency for: ${suggestion}`);
+    } catch (error) {
+      console.error("Learn error:", error);
+    }
+  };
+
+  // NEW: Fulfills "Insert words into the dictionary" requirement
+  const handleAddWord = async () => {
+    if (!input) return;
+    try {
+      await axios.post(`${API_BASE}/add-word`, { word: input });
+      setFeedback(`"${input}" added to dictionary!`);
+      checkSpelling(input); // Refresh status
+    } catch (error) {
+      console.error("Add word error:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-6 md:py-12 px-4">
-      {/* Academic Header - Responsive text sizes */}
+      {/* Academic Header */}
       <div className="max-w-4xl mx-auto text-center mb-8 md:mb-12">
         <div className="flex justify-center mb-4">
           <GraduationCap
@@ -69,10 +95,16 @@ const SpellChecker = () => {
         </div>
       </div>
 
-      {/* Main Grid: Stacks on mobile (1 col), side-by-side on large screens (3 cols) */}
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* Main: Spell Checker UI (Appears first on mobile) */}
+        {/* Main: Spell Checker UI */}
         <div className="lg:col-span-2 order-1 lg:order-2 bg-white p-5 md:p-8 rounded-xl shadow-lg border border-gray-100">
+          {/* Success Feedback Toast */}
+          {feedback && (
+            <div className="mb-4 p-3 bg-blue-600 text-white text-sm rounded-lg animate-bounce flex items-center gap-2">
+              <CheckCircle size={16} /> {feedback}
+            </div>
+          )}
+
           <div className="relative mb-6">
             <input
               type="text"
@@ -86,7 +118,10 @@ const SpellChecker = () => {
                 }`}
               placeholder="Type a word..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setFeedback(""); // Clear feedback when user types
+              }}
             />
 
             <div className="absolute right-4 md:right-5 top-4 md:top-5">
@@ -106,15 +141,25 @@ const SpellChecker = () => {
           {status?.isCorrect === false && (
             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="p-4 md:p-5 bg-white border-2 border-red-100 rounded-xl shadow-inner">
-                <p className="text-red-800 font-semibold text-base md:text-lg mb-4">
-                  Correction Suggested:
-                </p>
+                <div className="flex justify-between items-center mb-4">
+                  <p className="text-red-800 font-semibold text-base md:text-lg">
+                    Correction Suggested:
+                  </p>
+                  {/* NEW: Add word functionality */}
+                  <button
+                    onClick={handleAddWord}
+                    className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tighter"
+                  >
+                    <PlusCircle size={14} /> Add "{input}" to dictionary
+                  </button>
+                </div>
+
                 {status.suggestions.length > 0 ? (
                   <div className="flex flex-wrap gap-2 md:gap-3">
                     {status.suggestions.map((suggestion, index) => (
                       <button
                         key={index}
-                        onClick={() => setInput(suggestion)}
+                        onClick={() => handleSuggestionClick(suggestion)}
                         className="bg-red-50 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-red-700 border border-red-200 text-sm md:text-base font-medium hover:bg-red-600 hover:text-white hover:border-red-600 transition-all transform hover:-translate-y-1 active:scale-95 shadow-sm"
                       >
                         {suggestion}
@@ -137,7 +182,7 @@ const SpellChecker = () => {
           )}
         </div>
 
-        {/* Sidebar: Members List (Appears second on mobile) */}
+        {/* Sidebar: Members List */}
         <div className="lg:col-span-1 order-2 lg:order-1 bg-white p-6 rounded-xl shadow-md border border-gray-100 h-fit">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
             <Users size={20} className="text-blue-600" />
@@ -161,8 +206,8 @@ const SpellChecker = () => {
 
       {/* Footer */}
       <footer className="mt-12 md:mt-16 text-center text-gray-400 text-xs md:text-sm px-4">
-        &copy; 2026 Mekelle University | CSE Group 4 | Data Structures &
-        Algorithms
+        &copy; 2026 Mekelle University | Software Engineering, section 3-Group 4
+        | Data Structures & Algorithms
       </footer>
     </div>
   );

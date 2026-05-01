@@ -8,20 +8,38 @@ class TrieNode {
 class Trie {
     constructor() {
         this.root = new TrieNode();
+        // REQUIREMENT: Hash Map to store word frequencies for O(1) retrieval
+        this.wordFrequencies = new Map(); 
     }
 
-    insert(word) {
+    /**
+     * Core Feature: Insert words into the dictionary
+     * Complexity: O(L) where L is the length of the word
+     */
+    insert(word, frequency = 1) {
         let node = this.root;
-        // Convert to lowercase to ensure consistency
-        for (let char of word.toLowerCase()) {
+        const lowerWord = word.toLowerCase();
+
+        for (let char of lowerWord) {
             if (!node.children[char]) {
                 node.children[char] = new TrieNode();
             }
             node = node.children[char];
         }
         node.isEndOfWord = true;
+
+        // Update our Hash Map (Frequency tracking)
+        if (this.wordFrequencies.has(lowerWord)) {
+            this.wordFrequencies.set(lowerWord, this.wordFrequencies.get(lowerWord) + 1);
+        } else {
+            this.wordFrequencies.set(lowerWord, frequency);
+        }
     }
 
+    /**
+     * Core Feature: Check if a word is spelled correctly
+     * Complexity: O(L)
+     */
     search(word) {
         let node = this.root;
         for (let char of word.toLowerCase()) {
@@ -31,29 +49,37 @@ class Trie {
         return node.isEndOfWord;
     }
 
+    /**
+     * Core Feature: Suggest corrections (Edit Distance 1)
+     * Requirement: Uses Hash Map for ranking suggestions
+     */
     getSuggestions(word) {
         const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-        let results = new Set(); // Use a Set to prevent duplicate suggestions
-        word = word.toLowerCase();
+        let candidates = new Set();
+        const w = word.toLowerCase();
 
-        for (let i = 0; i <= word.length; i++) {
-            // 1. Deletion (e.g., 'cat' -> 'at', 'ct', 'ca')
-            if (i < word.length) {
-                results.add(word.slice(0, i) + word.slice(i + 1));
+        for (let i = 0; i <= w.length; i++) {
+            // 1. Deletion
+            if (i < w.length) {
+                candidates.add(w.slice(0, i) + w.slice(i + 1));
             }
             // 2. Substitution & 3. Insertion
             for (let char of alphabet) {
-                // Substitution (e.g., 'cat' -> 'bat')
-                if (i < word.length) {
-                    results.add(word.slice(0, i) + char + word.slice(i + 1)); 
+                if (i < w.length) {
+                    candidates.add(w.slice(0, i) + char + w.slice(i + 1)); 
                 }
-                // Insertion (e.g., 'cat' -> 'cart')
-                results.add(word.slice(0, i) + char + word.slice(i));     
+                candidates.add(w.slice(0, i) + char + w.slice(i));     
             }
         }
 
-        // Filter out the generated words that don't actually exist in our Trie
-        return Array.from(results).filter(w => this.search(w));
+        // Filter valid words and then RANK them using our Hash Map
+        return Array.from(candidates)
+            .filter(candidate => this.search(candidate))
+            .sort((a, b) => {
+                const freqA = this.wordFrequencies.get(a) || 0;
+                const freqB = this.wordFrequencies.get(b) || 0;
+                return freqB - freqA; // Descending order (highest frequency first)
+            });
     }
 }
 
